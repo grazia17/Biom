@@ -1,165 +1,148 @@
-package core.appfilereader;
+package org.biometric;
+import java.awt.EventQueue;
 
-import core.factory.fileimportfactory.JXLSSheetAndCell;
-import core.model.ProjectConstants;
-import core.model.appfilereadermodal.StudentBiometricDetails;
-import core.model.appfilereadermodal.FileOperations;
-import core.model.attendencemodal.AttendanceOfDate;
-import core.model.attendencemodal.AttendanceStatusType;
-import core.model.employeemodal.BasicStudentDetails;
-import jxl.Sheet;
+import javax.swing.JFrame;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.Month;
-import java.time.Year;
-import java.util.StringTokenizer;
-import java.util.TreeMap;
+import org.biometric.report.GeneratePDF;
+import org.biometric.settings.AppSettings;
+import org.biometric.updation.Authenticator;
 
-import static core.model.attendencemodal.AttendanceStatusType.ABSENT;
-import static core.model.attendencemodal.AttendanceStatusType.PRESENT;
-import static core.utils.TimeManager.convertToLocalDate;
+import javax.imageio.ImageIO;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
+import javax.swing.JLabel;
+import javax.swing.SwingConstants;
+import java.awt.Font;
+import java.awt.Image;
 
+public class MainScreen {
 
-public class BiometricFileWorker extends InitialObjects implements FileOperations {
-
-	// Variable to store the number of rows in biometric file
-	private transient int numberOfRowsInBio;
-	// Variable to store the reference of sheet from workbook of biometric file
-	private transient Sheet sheet = null;
-	// Variable to add rows after which biometric xls file starts the new users
-	// entries
-	private transient int ADD_ROW_STEPS = 0;
+	public JFrame frmBiometricAttendanceSystem;
 
 	/**
-	 * @param biometricFile This is the filename which is read to return the
-	 *                      reference of its sheet from the workbook
+	 * Launch the application.
 	 */
-	public BiometricFileWorker(String biometricFile) {
-		// Get the first sheet
-		sheet = new JXLSSheetAndCell().JXLSSheet(biometricFile);
-		numberOfRowsInBio = (sheet.getRows() - 11) / 18;
-	}
-
-	/**
-	 * Reads the biometric xls file and stores in object form
-	 */
-	@Override
-	public void readFile(BasicEmployeeDetails obj) {
-
-		empBiometricMap = new TreeMap<>();
-
-		// local data
-		String empId, empName;
-		AttendanceOfDate[] attendanceOfDate;
-
-		// Set Global Month and Year
-		String monthYear = getCustomCellContent(13, 7);
-		String[] temp = monthYear.split("   ");
-		ProjectConstants.setMONTH(Month.valueOf(temp[0].toUpperCase()));
-		ProjectConstants.setYEAR(Year.parse(temp[1]));
-
-		//set file generation date
-		ProjectConstants.setBiometricFileGenerationDate(convertToLocalDate(getCustomCellContent(11, 5), "d/m/y"));
-
-		for (int i = 0; i < numberOfRowsInBio; i++) {
-			empName = getCustomCellContent(3, 13 + (18 * ADD_ROW_STEPS));
-			empId = getCustomCellContent(3, 15 + (18 * ADD_ROW_STEPS));
-
-			attendanceOfDate = new AttendanceOfDate[ProjectConstants.getNumberOfDaysConsideredInRespectiveMonth()];
-			getMonthlyAttendanceOfEmployee(attendanceOfDate); // referenced
-
-			obj = new EmployeeBiometricDetails(empId, empName, attendanceOfDate);
-			empBiometricMap.put(empId, (EmployeeBiometricDetails) obj);
-
-			ADD_ROW_STEPS++;
-		}
-	}
-
-	/**
-	 * Method to display the contents read till reading of the Biometric file
-	 *
-	 * @implNote Remove this from the production release version
-	 */
-	@Override
-	public void displayFile() {
-		System.out.println(ProjectConstants.getMONTH());
-		empBiometricMap.values().forEach(EmployeeBiometricDetails::displayEmpBiometricDetails);
-	}
-
-	/**
-	 * @param column the column number starting from 0 from which data is to be
-	 *               retrieved
-	 * @param row    the row number stating with 0 from which data is to be
-	 *               retrieved
-	 * @return return the contents for the cell specified by column and row
-	 */
-	private String getCustomCellContent(int column, int row) {
-		return sheet.getCell(column, row).getContents().trim();
-	}
-
-	/**
-	 * method to retrieve the attendance for an employee for that month
-	 *
-	 * @param attendanceOfDate Empty object that will hold all dates information
-	 *                         as array, since it is pass by reference expected behavior is
-	 *                         that after the method ends, we will have a filled object
-	 *                         without need to return anything from method
-	 */
-	private void getMonthlyAttendanceOfEmployee(AttendanceOfDate[] attendanceOfDate) {
-		StringTokenizer st;
-		AttendanceStatusType attendanceStatus;
-
-		for (int k = 0; k < ProjectConstants.getNumberOfDaysConsideredInRespectiveMonth(); k++) {
-			LocalDate tempDate = LocalDate.of(ProjectConstants.getYEAR().getValue(), ProjectConstants.getMONTH(),
-					(k + 1));
-			attendanceOfDate[k] = new AttendanceOfDate();
-			attendanceOfDate[k].setCurrentDate(tempDate);
-			attendanceStatus = ABSENT; // default attendance status for
-			// an employee
-
-			st = new StringTokenizer(getCustomCellContent(k, 20 + (18 * ADD_ROW_STEPS)), "   ");
-
-			lb:
-			for (int j = 2; j < 6; j++) {
-				String tempString;
-				if (st.hasMoreElements()) {
-					tempString = ((String) st.nextElement()).trim();
-					// A
-					// 11:00 12:00 00;00 P
-					switch (tempString) {
-						case "A":
-						case "A/A":
-						case "P/A":
-
-							attendanceStatus = ABSENT;
-							break lb;
-
-					/* Removing this case due to addition of night shift,
-					due to which the system now counts saturday as A and monday as W
-					Also we are adding the attendance status of weekend by checking for
-					saturday and sunday later so this case is moot
-					*/
-						case "W":
-							// case when employeemodal checks in on weekend
-							/*attendanceStatus = WEEKEND_HOLIDAY;*/
-							break lb;
-
-						case "A/P":    //this case was considered as present because Amrita said that Saurabh is completely and utterly mad
-						case "P":
-							attendanceStatus = PRESENT;
-							break lb;
-
-						default:
-							if (j == 2)
-								attendanceOfDate[k].setCheckIn(LocalTime.parse(tempString));
-							else if (j == 3)
-								attendanceOfDate[k].setCheckOut(LocalTime.parse(tempString));
-					}
+	public static void main(String[] args) {
+		EventQueue.invokeLater(new Runnable() {
+			public void run() {
+				try {
+					MainScreen window = new MainScreen();
+					window.frmBiometricAttendanceSystem.setVisible(true);
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
 			}
-			attendanceOfDate[k].setWorkTimeForDay(null);
-			attendanceOfDate[k].setAttendanceStatusType(attendanceStatus);
+		});
+	}
+
+	/**
+	 * Create the application.
+	 */
+	public MainScreen() {
+		initialize();
+	}
+
+	/**
+	 * Initialize the contents of the frame.
+	 */
+	private void initialize() {
+		frmBiometricAttendanceSystem = new JFrame();
+		frmBiometricAttendanceSystem.setTitle("BioAttendance Admin");
+		frmBiometricAttendanceSystem.setBounds(100, 100, 536, 356);
+		frmBiometricAttendanceSystem.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		frmBiometricAttendanceSystem.getContentPane().setLayout(null);
+
+		JButton btnGenerateReport = new JButton("");
+		btnGenerateReport.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				new GeneratePDF().frmGenerateAttendanceReport.setVisible(true);
+			}
+		});
+		btnGenerateReport.setBounds(45, 146, 81, 87);
+		try {
+			Image emp_img = ImageIO
+					.read(Authenticator.class.getClassLoader().getResourceAsStream("resources/report.png"))
+					.getScaledInstance(50, 50, Image.SCALE_SMOOTH);
+			btnGenerateReport.setIcon(new ImageIcon(emp_img));
+		} catch (Exception ex) {
+
 		}
+		frmBiometricAttendanceSystem.getContentPane().add(btnGenerateReport);
+
+		JButton btnSettings = new JButton("");
+		btnSettings.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				new AppSettings().frmSettings.setVisible(true);
+			}
+		});
+		btnSettings.setBounds(395, 146, 81, 87);
+		try {
+			Image emp_img = ImageIO
+					.read(Authenticator.class.getClassLoader().getResourceAsStream("resources/settings.png"))
+					.getScaledInstance(50, 50, Image.SCALE_SMOOTH);
+			btnSettings.setIcon(new ImageIcon(emp_img));
+		} catch (Exception ex) {
+
+		}
+		frmBiometricAttendanceSystem.getContentPane().add(btnSettings);
+
+		JButton btnUpdateEmployee = new JButton("");
+		btnUpdateEmployee.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				new Authenticator().frmUpdateEmployee.setVisible(true);
+			}
+		});
+		try {
+			Image emp_img = ImageIO.read(Authenticator.class.getClassLoader().getResourceAsStream("resources/edit.png"))
+					.getScaledInstance(50, 50, Image.SCALE_SMOOTH);
+			btnUpdateEmployee.setIcon(new ImageIcon(emp_img));
+		} catch (Exception ex) {
+
+		}
+		btnUpdateEmployee.setBounds(222, 146, 81, 87);
+		frmBiometricAttendanceSystem.getContentPane().add(btnUpdateEmployee);
+
+		JLabel label = new JLabel("");
+		label.setBounds(10, 11, 124, 103);
+		try {
+			label.setIcon(new ImageIcon(
+					ImageIO.read(Authenticator.class.getClassLoader().getResourceAsStream("resources/SIL logo.jpg"))
+							.getScaledInstance(136, 90, Image.SCALE_SMOOTH)));
+		} catch (Exception ex) {
+
+		}
+		frmBiometricAttendanceSystem.getContentPane().add(label);
+
+		JLabel lblAdminMenu = new JLabel("Admin menu");
+		lblAdminMenu.setHorizontalAlignment(SwingConstants.CENTER);
+		lblAdminMenu.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 20));
+		lblAdminMenu.setBounds(144, 24, 365, 72);
+		frmBiometricAttendanceSystem.getContentPane().add(lblAdminMenu);
+
+		JLabel label_1 = new JLabel("\u00A9 Copyright 2017. Saraswat Infotech Ltd");
+		label_1.setHorizontalAlignment(SwingConstants.CENTER);
+		label_1.setFont(new Font("Tahoma", Font.PLAIN, 9));
+		label_1.setBounds(10, 293, 499, 14);
+		frmBiometricAttendanceSystem.getContentPane().add(label_1);
+
+		JLabel lblGenerateReport = new JLabel("Generate report");
+		lblGenerateReport.setHorizontalAlignment(SwingConstants.CENTER);
+		lblGenerateReport.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
+		lblGenerateReport.setBounds(23, 238, 124, 20);
+		frmBiometricAttendanceSystem.getContentPane().add(lblGenerateReport);
+
+		JLabel lblUpdateEmployee = new JLabel("Update employee");
+		lblUpdateEmployee.setHorizontalAlignment(SwingConstants.CENTER);
+		lblUpdateEmployee.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
+		lblUpdateEmployee.setBounds(201, 238, 124, 20);
+		frmBiometricAttendanceSystem.getContentPane().add(lblUpdateEmployee);
+
+		JLabel lblSettings = new JLabel("Settings");
+		lblSettings.setHorizontalAlignment(SwingConstants.CENTER);
+		lblSettings.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
+		lblSettings.setBounds(374, 238, 124, 20);
+		frmBiometricAttendanceSystem.getContentPane().add(lblSettings);
 	}
 }
