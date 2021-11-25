@@ -1,16 +1,12 @@
-/*
- * Copyright (c) 2016.
- */
-
 package core.appfilereader;
 
 import core.factory.fileimportfactory.JXLSSheetAndCell;
 import core.model.ProjectConstants;
-import core.model.appfilereadermodal.EmployeeBiometricDetails;
+import core.model.appfilereadermodal.StudentBiometricDetails;
 import core.model.appfilereadermodal.FileOperations;
 import core.model.attendencemodal.AttendanceOfDate;
 import core.model.attendencemodal.AttendanceStatusType;
-import core.model.employeemodal.BasicEmployeeDetails;
+import core.model.employeemodal.BasicStudentDetails;
 import jxl.Sheet;
 
 import java.time.LocalDate;
@@ -24,12 +20,7 @@ import static core.model.attendencemodal.AttendanceStatusType.ABSENT;
 import static core.model.attendencemodal.AttendanceStatusType.PRESENT;
 import static core.utils.TimeManager.convertToLocalDate;
 
-/**
- * Created by Saurabh on 2/10/2016. updated on 4/22/2016
- *
- * @version 1.8
- * @since 1.8 added setBiometricFileGenerationDate and removed Weekend_holiday status setting
- */
+
 public class BiometricFileWorker extends InitialObjects implements FileOperations {
 
 	// Variable to store the number of rows in biometric file
